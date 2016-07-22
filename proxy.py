@@ -49,102 +49,82 @@ import base64
 import sspi # part of pywin32
 import urllib
 import urlparse
+import os
 
+
+try:
+    import sspi
+except ImportError:
+    raise ImportError # TODO: ctypes! (nb. should do that in a try block too)
+  
+def sspiauth(scheme='NTLM'):
+    handle = sspi.ClientAuth(scheme)
+    def generate_answer(challenge=None):
+        if challenge is not None:
+            assert challenge.startswith(scheme) # or, could be a series of challenge options?
+            challenge = base64.b64decode(challenge[len(scheme):])
+        status, token_buffer = handle.authorize(challenge)
+        token = scheme + ' ' + base64.b64encode(token_buffer[0].Buffer)
+        return token
+    return generate_answer
+
+class ntlm_http:
+    def __init__(self, host, port, credentials=None, isproxy=False):
+        self.unauth = 407 if isproxy else 401
+        self.toserver = ('Proxy-' if isproxy else '') + 'Authorization'
+        self.fromserv = ('Proxy-' if isproxy else '') + 'Authenticate'
+        
+        self.credentials = sspiauth() if credentials is None else credentials
+
+        self.destination = host, port        
+        self.conn = httplib.HTTPConnection(*self.destination)     
+
+    def _http(self,kind,url,headers={}):
+        """ standard (non-NTLM) HTTP request and response """
+        self.conn.request(kind,url,headers=headers)
+        return self.conn.getresponse()
+        
+    def do_request_and_get_response(self,kind,url):
+        """
+        NTLM HTTP handshake protocol:
+            Client: try to connect and request resource
+            Server: reject the request and close connection
+            Client: reattempt and send negotiation token (NTLM type 1 message)
+            Server: reject and send challenge token (NTLM type 2 message)
+            Client: respond with authorisation token (NTLM type 3 message)
+            Server: deliver resource
+            Client: request another resource
+            Server: deliver resource
+            ...
+        """        
+        r = self._http(kind,url) # knock first
+        
+        if r.status == self.unauth: # perform NTLM handshake if necessary            
+            r.read()
+            assert r.isclosed()            
+            self.conn = httplib.HTTPConnection(*self.destination)   # reconnect
+            r = self._http(kind,url,
+                           headers={self.toserver:self.credentials()}) # negotiate
+            r.read()
+            challenge = r.getheader(self.fromserv)
+            r = self._http(kind,url,
+                           headers={self.toserver:self.credentials(challenge)}) # authenticate
+        # handshake either completed or was never necessary so now fall
+        # back to standard implementation until connection closed
+        self.do_request_and_get_response = self._http
+        return r
+            
 #proxyhost,proxyport = "proxy.mydomain.org",8080
 autodetect = urlparse.urlparse(urllib.getproxies()['http'])
 proxyhost = autodetect.hostname
-proxyport = autodetect.port
-del autodetect
+proxyport = autodetect.port       
+    
+connection_via_proxy = ntlm_http(proxyhost,proxyport,isproxy=True)
+for url in ["http://www.google.com.au","http://www.bbc.com/news"]:
+    r = connection_via_proxy.do_request_and_get_response('GET',url)
+    assert r.status == 200 # OK
+    print r.read().lower().split('title')[1]
 
-
-#======================================No headers: 407 proxy auth fail
-
-"""
-conn = httplib.HTTPConnection(proxyhost,proxyport)
-conn.request("GET","http://www.google.com.au")
-r = conn.getresponse()
-print r.status, r.reason
-print r.getheader('proxy-authenticate')
-"""
-
-#407 
-#Proxy Authentication Required ( Forefront TMG ...
-#NTLM, Basic realm="PROXY3.mydomain.org"
-
-#======================================Basic authentication works
-"""
-username = 'Aladdin'
-password = 'open sesame'
-
-basicauth = {'Proxy-Authorization':
-                'Basic ' + base64.b64encode(username + ':' + password)}
-
-conn = httplib.HTTPConnection(proxyhost,proxyport)
-conn.request("GET","http://www.google.com.au",headers=basicauth)
-
-r = conn.getresponse()
-print r.status, r.reason
-data = r.read()
-print data[:200]
-"""
-#======================================NTLM without SSPI.. too hard!
-#                                      but with SSPI...
-
-# NTLM handshake protocol: 1. knock (and be rejected)
-
-conn = httplib.HTTPConnection(proxyhost,proxyport)
-conn.request("GET", "http://www.google.com.au")
-r = conn.getresponse()
-assert r.status == 407
-reject = r.getheader('proxy-authenticate')
-assert 'NTLM' in reject # or 'Negotiate', and probably case insensitive
-r.read()
-assert r.isclosed()
-
-# 2. reconnect and send negotiation token (NTLM type 1 message)
-
-credentials = sspi.ClientAuth("NTLM", auth_info=None)
-scheme = credentials.pkg_info['Name']
-status, token_buffer = credentials.authorize(None)
-assert status # authentication incomplete
-#token = base64.encodestring(token_buffer[0].Buffer).replace("\012", "")
-token = base64.b64encode(token_buffer[0].Buffer)
-
-negotiate = {'Proxy-Authorization': scheme + ' ' + token} #, 'Content-Length':'0'}
-conn = httplib.HTTPConnection(proxyhost,proxyport)
-conn.request("GET", "http://www.google.com.au", headers=negotiate)
-r = conn.getresponse()
-
-# Should receive chaallenge token (NTLM type 2 message) from proxy.
-
-assert r.status == 407
-challenge = r.getheader('Proxy-Authenticate')
-assert challenge is not None
-assert challenge.startswith(scheme) # or, could be a series of challenge options?
-token = base64.b64decode(challenge[len(scheme):])
-
-# 3. Authenticate by sending answer (NTLM type 3 message) to challenge
-
-status, token_buffer = credentials.authorize(token) 
-assert not status # this token will complete authentication
-token = base64.b64encode(token_buffer[0].Buffer)
-authority = {'Proxy-Authorization': scheme + ' ' + token}
-
-r.read() #assert not r.isclosed() fails -- bug?
-conn.request("GET", "http://www.google.com.au", headers=authority)
-r = conn.getresponse()
-
-# 4. Connection is now authenticated and open for further requests.
-
-assert r.status == 200 # OK!
-print r.read().lower().split('title')[1] # demo html parsing without beautifulsoup
-
-conn.request("GET", "http://www.bbc.com/news")
-r = conn.getresponse()
-assert r.status == 200
-print r.read().lower().split('title')[1]
-
-conn.close()
 
 # ==================================== Refactor?
 """
@@ -171,3 +151,35 @@ At minimum. Ideally should be extendable to other authentication protocols,
 and enabling single sign-on from other operating systems.
 """
 # ==================================== ctypes instead of pywin32 (sspi) ?
+"""
+def ntlm(isproxy=False):
+    unauth = 407 if isproxy else 401
+    toserver = ('Proxy-' if isproxy else '') + 'Authorization'
+    fromserv = ('Proxy-' if isproxy else '') + 'Authenticate'
+    yield {} # knock first with no auth
+    # if ntlm then need to reconnect
+    yield {toserver:token}# type 1
+    # read type 2
+    yield {toserver:token}# type 3 
+    while True:
+        yield {} # no further auth needed
+        
+try:
+    import sspi
+    def win32sspi(scheme='NTLM'):
+        handle = sspi.ClientAuth(scheme)
+        def generate_answer(challenge=None):
+            status, token_buffer = handle.authorize(challenge)
+            token = base64.b64encode(token_buffer[0].Buffer)
+            return status, token
+        return generate_answer
+except ImportError:
+    raise ImportError # TODO: ctypes!
+    
+status, token_buffer = credentials.authorize(None)
+assert status # authentication incomplete
+#token = base64.encodestring(token_buffer[0].Buffer).replace("\012", "")
+token = 
+
+negotiate = {'Proxy-Authorization': scheme + ' ' + token}
+"""
