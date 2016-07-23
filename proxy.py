@@ -26,6 +26,10 @@ What currently (i.e. previously) exists:
     library, potentially mitagating pywin32 vendoring in installers, which
     is a concern expressed e.g. by pip developers).
 -   HTTP overview at https://www.jmarshall.com/easy/http/ 
+-   SSPI API documentation (old) also describes NTLM authentication
+    https://msdn.microsoft.com/en-us/library/bb742535.aspx
+    https://msdn.microsoft.com/en-us/library/windows/desktop/aa374712(v=vs.85).aspx
+    https://msdn.microsoft.com/en-us/library/windows/desktop/aa375512(v=vs.85).aspx
 -   Ntlmaps (a python equivalent of CNTLM) is a local proxy for forwarding 
     connections through an NTLM authenticated proxy without SSPI.
 -   An example of python instead using native windows HTTP API to automagically
@@ -44,6 +48,7 @@ appropriate to NTLM). All urllibs utilise httplib.
 
 """
 
+
 import httplib
 import base64
 import sspi # part of pywin32
@@ -52,134 +57,111 @@ import urlparse
 import os
 
 
-try:
-    from sspi import ClientAuth
-except ImportError:
-    raise ImportError # TODO: ctypes! (nb. should do that in a try block too)
-  
-def sspiauth(scheme='NTLM'):
-    handle = ClientAuth(scheme)
-    def generate_answer(challenge=None):
-        if challenge is not None:
-            assert challenge.startswith(scheme) # or, could be a series of challenge options?
-            challenge = base64.b64decode(challenge[len(scheme):])
-        status, token_buffer = handle.authorize(challenge)
-        token = scheme + ' ' + base64.b64encode(token_buffer[0].Buffer)
-        return token
-    return generate_answer
+import sspi
 
-class ntlm_http:
-    def __init__(self, host, port, credentials=None, isproxy=False):
-        self.unauth = 407 if isproxy else 401
-        self.toserver = ('Proxy-' if isproxy else '') + 'Authorization'
-        self.fromserv = ('Proxy-' if isproxy else '') + 'Authenticate'
-        
-        self.credentials = sspiauth() if credentials is None else credentials
+import ctypes
 
-        self.destination = host, port        
-        self.conn = httplib.HTTPConnection(*self.destination)     
+acquire = ctypes.windll.secur32.AcquireCredentialsHandleW
+init = ctypes.windll.secur32.InitializeSecurityContextW
 
-    def _http(self,kind,url,headers={}):
-        """ standard (non-NTLM) HTTP request and response """
-        self.conn.request(kind,url,headers=headers)
-        return self.conn.getresponse()
-        
-    def do_request_and_get_response(self,kind,url):
-        """
-        NTLM HTTP handshake protocol:
-            Client: try to connect and request resource
-            Server: reject the request and close connection
-            Client: reattempt and send negotiation token (NTLM type 1 message)
-            Server: reject and send challenge token (NTLM type 2 message)
-            Client: respond with authorisation token (NTLM type 3 message)
-            Server: deliver resource
-            Client: request another resource
-            Server: deliver resource
-            ...
-        """        
-        r = self._http(kind,url) # knock first
-        
-        if r.status == self.unauth: # perform NTLM handshake if necessary            
-            r.read()
-            assert r.isclosed()            
-            self.conn = httplib.HTTPConnection(*self.destination)   # reconnect
-            r = self._http(kind,url,
-                           headers={self.toserver:self.credentials()}) # negotiate
-            r.read()
-            challenge = r.getheader(self.fromserv)
-            r = self._http(kind,url,
-                           headers={self.toserver:self.credentials(challenge)}) # authenticate
-        # handshake either completed or was never necessary so now fall
-        # back to standard implementation until connection closed
-        self.do_request_and_get_response = self._http
-        return r
-            
-#proxyhost,proxyport = "proxy.mydomain.org",8080
-autodetect = urlparse.urlparse(urllib.getproxies()['http'])
-proxyhost = autodetect.hostname
-proxyport = autodetect.port       
-    
-connection_via_proxy = ntlm_http(proxyhost,proxyport,isproxy=True)
-for url in ["http://www.google.com.au","http://www.bbc.com/news"]:
-    r = connection_via_proxy.do_request_and_get_response('GET',url)
-    assert r.status == 200 # OK
-    print r.read().lower().split('title')[1]
+from ctypes import *
+
+class credhandle(ctypes.Structure):
+    _fields_ = [('lower',POINTER(c_ulong)),('upper',POINTER(c_ulong))]
+
+acquire.argtypes = [c_wchar_p]*2 + [c_ulong] + [c_void_p]*4 + [POINTER(credhandle), POINTER(c_longlong)]
+acquire.restype = c_short
+
+init.argtypes = [c_void_p]*2 + [c_wchar_p] + [c_ulong]*3 + [c_void_p,c_ulong] + [c_void_p]*4
+init.restype = c_long
 
 
-# ==================================== Refactor?
+cred = credhandle()
+time = c_longlong()
+
+print time
+print cred.lower
+result = acquire(None,u'NTLM',2,None,None,None,None,byref(cred),byref(time))
+# result = init(cred,tok,None,0,0,0,None,0,h,None,attr,None)
+print result
+print "ok"
+print time
+print cred.lower
+raise SystemExit
 """
-With an open socket, use conn.request and conn.getresponse.
 
-Should have a ntlm object, that takes requests and produces responses.
-It could be implemented simply as a factory function.
-Can defer deciding which to subclass among httplib, urllib 1-3, & requests
-Structure in a way so that the same ntlm handshake code isn't just for proxies.
+# Difficult to get working... let's try using the win32security module as an intermediate step
+# with comparison to sspi.py
 
-Regarding credentials, wish to have a stateful thing
-that takes a challenge (or none) and produces a token.
-This can also be implemented as a factory function, without needing a class.
-However, imply that it should be a subclass of a general credential
-thing, of which a sister class would take manually input user/pass.
-This only involves two subfunction calls (corresponding with the winapi).
-Should have two implementations, pywin32(sspi) and ctypes.
 
-So ultimately, the user is saying: do normal GETs, but use a connection
-to my autodetected proxy, and use ntlm for the proxy, with single sign-on.
-But imply they could use a different proxy, or a different signon,
-or an authenticated host with no proxy, and with or without pywin32 dependency.
-At minimum. Ideally should be extendable to other authentication protocols,
-and enabling single sign-on from other operating systems.
-"""
-# ==================================== ctypes instead of pywin32 (sspi) ?
-"""
-def ntlm(isproxy=False):
-    unauth = 407 if isproxy else 401
-    toserver = ('Proxy-' if isproxy else '') + 'Authorization'
-    fromserv = ('Proxy-' if isproxy else '') + 'Authenticate'
-    yield {} # knock first with no auth
-    # if ntlm then need to reconnect
-    yield {toserver:token}# type 1
-    # read type 2
-    yield {toserver:token}# type 3 
-    while True:
-        yield {} # no further auth needed
-        
-try:
-    import sspi
-    def win32sspi(scheme='NTLM'):
-        handle = sspi.ClientAuth(scheme)
-        def generate_answer(challenge=None):
-            status, token_buffer = handle.authorize(challenge)
-            token = base64.b64encode(token_buffer[0].Buffer)
-            return status, token
-        return generate_answer
-except ImportError:
-    raise ImportError # TODO: ctypes!
-    
-status, token_buffer = credentials.authorize(None)
-assert status # authentication incomplete
-#token = base64.encodestring(token_buffer[0].Buffer).replace("\012", "")
-token = 
+import win32security
+import sspicon
 
-negotiate = {'Proxy-Authorization': scheme + ' ' + token}
-"""
+print sspicon.SECPKG_CRED_OUTBOUND
+
+#Note, win32sec A.C.H. can take a user/dom/pass tuple if desired.
+credentials, expiry = win32security.AcquireCredentialsHandle(
+    None, u'NTLM', sspicon.SECPKG_CRED_OUTBOUND, None, None)
+
+# Note the int argument has flags for validating what the server gets,
+# versus preparing a client's output.
+
+print credentials
+print expiry.__repr__()
+
+sec_buffer_in = None
+
+maxtoken = win32security.QuerySecurityPackageInfo('NTLM')['MaxToken']
+tokenbuf = win32security.PySecBufferType(maxtoken,sspicon.SECBUFFER_TOKEN)
+sec_buffer_out = win32security.PySecBufferDescType()
+sec_buffer_out.append(tokenbuf)
+
+targetspn = None
+scflags = sspicon.ISC_REQ_INTEGRITY|sspicon.ISC_REQ_SEQUENCE_DETECT|sspicon.ISC_REQ_REPLAY_DETECT|sspicon.ISC_REQ_CONFIDENTIALITY
+datarep = sspicon.SECURITY_NETWORK_DREP
+ctxtin = None
+ctxt = win32security.PyCtxtHandleType()
+
+err, attr, exp=win32security.InitializeSecurityContext(
+    credentials, ctxtin, targetspn, scflags, datarep, sec_buffer_in, ctxt, sec_buffer_out)
+
+print err
+print attr
+print exp
+
+
+#------------------- Try again with more primitive inputs.
+
+
+
+credentials, expiry = win32security.AcquireCredentialsHandle(
+    None, u'NTLM', sspicon.SECPKG_CRED_OUTBOUND, None, None)
+
+print credentials
+print expiry.__repr__()
+
+sec_buffer_in = None
+
+maxtoken = win32security.QuerySecurityPackageInfo('NTLM')['MaxToken']
+tokenbuf = win32security.PySecBufferType(maxtoken,sspicon.SECBUFFER_TOKEN)
+sec_buffer_out = win32security.PySecBufferDescType()
+sec_buffer_out.append(tokenbuf)
+
+targetspn = None
+scflags = sspicon.ISC_REQ_INTEGRITY|sspicon.ISC_REQ_SEQUENCE_DETECT|sspicon.ISC_REQ_REPLAY_DETECT|sspicon.ISC_REQ_CONFIDENTIALITY
+datarep = sspicon.SECURITY_NETWORK_DREP
+ctxtin = None
+ctxt = win32security.PyCtxtHandleType()
+
+err, attr, exp=win32security.InitializeSecurityContext(
+    credentials, ctxtin, targetspn, 0, 0, sec_buffer_in, ctxt, sec_buffer_out)
+
+print err
+print attr
+print exp
+
+# So, skipping the input scflags zeroes attr, the output context attribute flags?
+# Not obvious if datarep has any effect. It is only meant to indicate endianness.
+
+
+#"""
