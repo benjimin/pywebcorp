@@ -49,6 +49,7 @@ appropriate to NTLM). All urllibs utilise httplib.
 """
 
 
+
 import httplib
 import base64
 import sspi # part of pywin32
@@ -58,6 +59,7 @@ import os
 
 
 import sspi
+
 
 import ctypes
 
