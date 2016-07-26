@@ -65,30 +65,68 @@ acquire = ctypes.windll.secur32.AcquireCredentialsHandleW
 init = ctypes.windll.secur32.InitializeSecurityContextW
 
 from ctypes import *
+from ctypes.wintypes import *
 
-class credhandle(ctypes.Structure):
-    _fields_ = [('lower',POINTER(c_ulong)),('upper',POINTER(c_ulong))]
+class SecHandle(ctypes.Structure): # typedef for CredHandle/CtxtHandle
+    _fields_ = [('dwLower',POINTER(c_ulong)),('dwUpper',POINTER(c_ulong))] # each part is ULONG_PTR
+class SecBuffer(ctypes.Structure):
+    # size (bytes) of buffer, type flags (empty=0,token=2), ptr to buffer
+    _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',c_void_p)]
+class SecBufferDesc(ctypes.Structure):
+    # SECBUFFER_VERSION=0, # of buffers, ptr to array (although an array of 1 might suffice)
+    _fields_ = [('ulVersion',ULONG),('cBuffers',ULONG),('pBuffers',POINTER(SecBuffer))]
 
-acquire.argtypes = [c_wchar_p]*2 + [c_ulong] + [c_void_p]*4 + [POINTER(credhandle), POINTER(c_longlong)]
-acquire.restype = c_short
+
+acquire.argtypes = [c_wchar_p]*2 + [c_ulong] + [c_void_p]*4 + [POINTER(SecHandle), POINTER(c_longlong)]
+acquire.restype = c_long ######?
 
 init.argtypes = [c_void_p]*2 + [c_wchar_p] + [c_ulong]*3 + [c_void_p,c_ulong] + [c_void_p]*4
-init.restype = c_long
+init.restype = c_short ######?
 
 
-cred = credhandle()
+cred = SecHandle()
 time = c_longlong()
 
 print time
-print cred.lower
+print cred.dwLower
 result = acquire(None,u'NTLM',2,None,None,None,None,byref(cred),byref(time))
-# result = init(cred,tok,None,0,0,0,None,0,h,None,attr,None)
 print result
 print "ok"
-print time
-print cred.lower
-raise SystemExit
-"""
+print time.value*1.0
+print hex(time.value)
+#import datetime
+#print datetime.datetime(1601,1,1) + datetime.timedelta(microseconds=int('0xd5969fff7fffff36',0)/10)
+#import time as t
+#print t.time()
+print 
+print cred.dwLower
+print '-'*40 # ------------------------------
+
+# The SSPI API requires a number of structs.
+# If these are allocated by the system, must let the system deallocate after.
+# Alternatively, can construct ourselves.
+
+maxtokensize = 2888
+buf = ctypes.create_string_buffer(maxtokensize)
+buf1 = SecBuffer(maxtokensize,0,ctypes.cast(ctypes.pointer(buf),c_void_p))
+bufdesc = SecBufferDesc(0,1,ctypes.pointer(buf1))
+context = SecHandle()
+outputflags = ULONG()
+
+#print repr(buf.raw)
+result = init(byref(cred),None,None,0,0,0,None,0,byref(context),byref(bufdesc),byref(outputflags),None)
+#print repr(buf.raw)
+print result
+print outputflags
+print bufdesc
+print buf1
+print buf1.BufferType
+
+
+#print sspi.ClientAuth('NTLM').pkg_info # maxtoken = 2888
+
+print '-'*40 # ------------------------------
+
 
 # Difficult to get working... let's try using the win32security module as an intermediate step
 # with comparison to sspi.py
@@ -108,6 +146,9 @@ credentials, expiry = win32security.AcquireCredentialsHandle(
 
 print credentials
 print expiry.__repr__()
+print type(expiry)
+print dir(expiry)
+print help(expiry)
 
 sec_buffer_in = None
 
