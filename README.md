@@ -32,6 +32,10 @@ What currently (i.e. previously) exists:
     library, potentially mitagating pywin32 vendoring in installers, which
     is a concern expressed e.g. by pip developers).
 -   HTTP overview at https://www.jmarshall.com/easy/http/ 
+-   SSPI API documentation (old) also describes NTLM authentication
+    https://msdn.microsoft.com/en-us/library/bb742535.aspx
+    https://msdn.microsoft.com/en-us/library/windows/desktop/aa374712(v=vs.85).aspx
+    https://msdn.microsoft.com/en-us/library/windows/desktop/aa375512(v=vs.85).aspx
 -   Ntlmaps (a python equivalent of CNTLM) is a local proxy for forwarding 
     connections through an NTLM authenticated proxy without SSPI.
 -   An example of python instead using native windows HTTP API to automagically
