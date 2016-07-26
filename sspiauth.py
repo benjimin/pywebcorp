@@ -7,12 +7,12 @@ Compartmentalised here to permit testing ctypes/pywin32 versions.
 import base64
 
 try:
-    import sspi
+    from sspi import ClientAuth
 except ImportError:
     raise ImportError # TODO: ctypes! (nb. should do that in a try block too)
   
 def sspiauth(scheme='NTLM'):
-    handle = sspi.ClientAuth(scheme)
+    handle = ClientAuth(scheme)
     def generate_answer(challenge=None):
         if challenge is not None:
             assert challenge.startswith(scheme) # or, could be a series of challenge options?
