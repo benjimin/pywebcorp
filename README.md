@@ -46,6 +46,8 @@ What currently (i.e. previously) exists:
 -   Python web access libraries already support proxy autodetection, which
     on Windows gets "Internet Options" from registry (i.e. as set by 
     OS in control panel and iexplorer) or is overridden by env vars.
+-   There exists an attempt at reimplementing pywin32 using ctypes. 
+    https://github.com/enthought/pywin32-ctypes
 
 The recommended approach for python web access (and used by pip and conda) is
 the requests library. This incorporates the urllib3 library, which 

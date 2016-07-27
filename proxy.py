@@ -23,14 +23,6 @@ init = ctypes.windll.secur32.InitializeSecurityContextW
 from ctypes import *
 from ctypes.wintypes import *
 
-class SecHandle(ctypes.Structure): # typedef for CredHandle/CtxtHandle
-    _fields_ = [('dwLower',POINTER(c_ulong)),('dwUpper',POINTER(c_ulong))] # each part is ULONG_PTR
-class SecBuffer(ctypes.Structure):
-    # size (bytes) of buffer, type flags (empty=0,token=2), ptr to buffer
-    _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',c_void_p)]
-class SecBufferDesc(ctypes.Structure):
-    # SECBUFFER_VERSION=0, # of buffers, ptr to array (although an array of 1 might suffice)
-    _fields_ = [('ulVersion',ULONG),('cBuffers',ULONG),('pBuffers',POINTER(SecBuffer))]
 
 
 acquire.argtypes = [c_wchar_p]*2 + [c_ulong] + [c_void_p]*4 + [POINTER(SecHandle), POINTER(c_longlong)]
