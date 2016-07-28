@@ -80,42 +80,82 @@ class w32sCA():
 
 """
 What follows is the ctypes magic, that certainly isn't working yet.
+
+WinAPI:
+    CHAR = 8 bit ANSI
+    DWORD = 32 bit uint, i.e. ulong. Similar to DWORD32 = uint
+    HANDLE = pvoid
+    INT = 32 bit (signed) int
+    LONG = also a 32 bit (signed) int, i.e., long.
+    LONGLONG = 64bit signed int, i.e. int64
+    PVOID = pointer to any type, i.e., void *
+    QWORD = 64bit unsigned int
+    SC_HANDLE = HANDLE
+    SHORT = 16 bit int
+    VOID = any type
+    WCHAR = 16bit unicode character i.e. wchar_t
+    
+Looks like originally, int 16 long 32 longlong 64. 
+Then int got upgraded once.
+But it wasn't upgraded again, so in windows it caught up with long, and
+in unix the long was also upgraded to catch up with longlong.
+Significance is that in windows, only pointers got bigger this time.
+(So everything compiles without change, but behaves the old way.)
+Also, float vs double, should differ in precision but ?
+
+
 """
 
+
+
 import ctypes
-from ctypes import POINTER, byref, pointer # convenience..
-from ctypes.wintypes import ULONG
-from ctypes import c_wchar_p, c_void_p, c_longlong # should use other types instead?
+from ctypes import POINTER, byref, pointer, Structure, sizeof, cast # convenience..
+from ctypes.wintypes import ULONG, LONG # int and long are both 32 for windows
+from ctypes import c_wchar_p, c_void_p, c_longlong, c_int32, c_uint32 # should use other types instead?
+
+SecStatus = LONG
+PVOID = c_void_p
 
 
-class SecHandle(ctypes.Structure): # typedef for CredHandle/CtxtHandle
+class SecInt(Structure):
+    _fields_ = [('LowPart',c_uint32),('HighPart',c_int32)]
+class uLargeInt(ctypes.Union):
+    _fields_ = [('QuadPart',ctypes.c_uint64),('u',SecInt)]
+    # note, "value" is redundant when asking for parts from union   
+
+class SecHandle(Structure): # typedef for CredHandle/CtxtHandle
     _fields_ = [('dwLower',POINTER(ULONG)),('dwUpper',POINTER(ULONG))] # each part is ULONG_PTR
-    def __init__(self): 
-        # rather than shallow null pointers, populate deeply with blank memory fields
-        ctypes.Structure.__init__(self, pointer(ULONG()), pointer(ULONG()))
-"""class SecBuffer(ctypes.Structure):
-    # size (bytes) of buffer, type flags (empty=0,token=2), ptr to buffer
-    _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',c_void_p)]
+    def __init__(self): # rather than shallow null pointers, populate deeply with blank memory fields
+        Structure.__init__(self, pointer(ULONG()), pointer(ULONG()))
+
+class SecBuffer(Structure):
+    # size (bytes) of buffer, type flags (empty=0,token=2), PVOID to buffer
+    _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',PVOID)]
+    def __init__(self, buf,notempty=False):
+        Structure.__init__(sizeof(buf),2*notempty,cast(pointer(buf),PVOID))
+        
 class SecBufferDesc(ctypes.Structure):
     # SECBUFFER_VERSION=0, # of buffers, ptr to array (although an array of 1 might suffice)
-    _fields_ = [('ulVersion',ULONG),('cBuffers',ULONG),('pBuffers',POINTER(SecBuffer))]"""
+    _fields_ = [('ulVersion',ULONG),('cBuffers',ULONG),('pBuffers',POINTER(SecBuffer))]
+    def __init__(self, sb):
+        Structure.__init__(0,1,pointer(sb))
 
 class ctypes_sspi(w32sCA):
     maxtoken = 10000 # let's say.
     def acquire(self,scheme):
         f = ctypes.windll.secur32.AcquireCredentialsHandleW
-        f.argtypes = [c_wchar_p]*2 + [ULONG] + [c_void_p]*4 + [POINTER(SecHandle), POINTER(c_longlong)]
-        #f.restype = c_long ??
+        f.argtypes = [c_wchar_p]*2 + [ULONG] + [c_void_p]*4 + [POINTER(SecHandle), POINTER(uLargeInt)]
+        f.restype = SecStatus
         
-        cred = SecHandle() # NOTE!!! Does this even initialise those pointers, to point anywhere?
+        cred = SecHandle()
         pcred = ctypes.pointer(cred)
-        time = ctypes.c_longlong()
+        time = uLargeInt()
         
-        print 'acqtime', hex(time.value)
-        print cred.dwLower, cred.dwUpper
+        print 'acqtime', time.u.LowPart, time.u.HighPart, time.QuadPart
+        print cred.dwLower.contents.value, cred.dwUpper.contents.value
         r = f(None,u'NTLM',2,None,None,None,None,pcred,byref(time))
-        print 'acqtime', hex(time.value)
-        print cred.dwLower, cred.dwUpper
+        print 'acqtime', time.u.LowPart, time.u.HighPart,time.QuadPart
+        print cred.dwLower.contents.value, cred.dwUpper.contents.value
         
         return cred
         
@@ -143,20 +183,9 @@ print buf1
 print buf1.BufferType
 """
 
-l1 = ULONG(7)
-l2 = ULONG(42)
-p1 = ctypes.pointer(l1)
-p2 = ctypes.pointer(l2)
-cred = SecHandle(p1,p2)
-print dir(cred.dwLower) # is this my bug?
-#cred.dwUpper.contents.value
 
-cred2 = SecHandle(ctypes.pointer(ULONG(7)),ctypes.pointer(ULONG(43)))
-cred3 = SecHandle(ctypes.addressof(ULONG(7)),ctypes.addressof(ULONG(43)))
-
-raise SystemExit
 
 ClientAuth = w32sCA # testing! ********************************
-ClientAuth = ctypes_sspi
+#ClientAuth = ctypes_sspi
 
 if __name__ == '__main__': import demo
