@@ -83,13 +83,16 @@ What follows is the ctypes magic, that certainly isn't working yet.
 """
 
 import ctypes
-from ctypes import POINTER, byref # convenience..
+from ctypes import POINTER, byref, pointer # convenience..
 from ctypes.wintypes import ULONG
 from ctypes import c_wchar_p, c_void_p, c_longlong # should use other types instead?
 
 
 class SecHandle(ctypes.Structure): # typedef for CredHandle/CtxtHandle
     _fields_ = [('dwLower',POINTER(ULONG)),('dwUpper',POINTER(ULONG))] # each part is ULONG_PTR
+    def __init__(self): 
+        # rather than shallow null pointers, populate deeply with blank memory fields
+        ctypes.Structure.__init__(self, pointer(ULONG()), pointer(ULONG()))
 """class SecBuffer(ctypes.Structure):
     # size (bytes) of buffer, type flags (empty=0,token=2), ptr to buffer
     _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',c_void_p)]
@@ -139,16 +142,21 @@ print bufdesc
 print buf1
 print buf1.BufferType
 """
-"""
+
 l1 = ULONG(7)
 l2 = ULONG(42)
 p1 = ctypes.pointer(l1)
 p2 = ctypes.pointer(l2)
 cred = SecHandle(p1,p2)
-cred.dwLower.value # is this my bug?
+print dir(cred.dwLower) # is this my bug?
+#cred.dwUpper.contents.value
 
+cred2 = SecHandle(ctypes.pointer(ULONG(7)),ctypes.pointer(ULONG(43)))
+cred3 = SecHandle(ctypes.addressof(ULONG(7)),ctypes.addressof(ULONG(43)))
+
+raise SystemExit
 
 ClientAuth = w32sCA # testing! ********************************
-ClientAuth = ctypes_sspi"""
+ClientAuth = ctypes_sspi
 
 if __name__ == '__main__': import demo

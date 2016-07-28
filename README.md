@@ -32,6 +32,9 @@ What currently (i.e. previously) exists:
     library, potentially mitagating pywin32 vendoring in installers, which
     is a concern expressed e.g. by pip developers).
 -   HTTP overview at https://www.jmarshall.com/easy/http/ 
+-   There is an open source re-implementation of the win32 API, which includes
+    the relevant header file.
+    https://github.com/FreeRDP/FreeRDP/blob/master/winpr/include/winpr/sspi.h
 -   SSPI API documentation (old) also describes NTLM authentication
     https://msdn.microsoft.com/en-us/library/bb742535.aspx
     https://msdn.microsoft.com/en-us/library/windows/desktop/aa374712(v=vs.85).aspx
