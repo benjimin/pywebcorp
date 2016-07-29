@@ -106,6 +106,13 @@ Significance is that in windows, only pointers got bigger this time.
 (So everything compiles without change, but behaves the old way.)
 Also, float vs double, should differ in precision but ?
 
+Extra issue. python ctypes uses 32bit/64bit pointers according to
+whether it is a 32bit/64bit python build. (The platform is win32 regardless.)
+The winAPI on 64bit OS should have both 32 and 64 bit versions of each
+system DLL, and should auto-select according to software (i.e. python).
+So it should just work. Ignore for now.
+
+
 
 """
 
@@ -135,8 +142,11 @@ class SecHandle(Structure): # typedef for CredHandle/CtxtHandle
 class SecBuffer(Structure):
     # size (bytes) of buffer, type flags (empty=0,token=2), PVOID to buffer
     _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',PVOID)]
-    def __init__(self, buf,empty=True):
-        Structure.__init__(self,sizeof(buf),2*(not empty),cast(pointer(buf),PVOID))
+    def __init__(self, buf):
+        # instead of cast, should try PVOID.from_buffer(buf)? wait, or not?
+        #Structure.__init__(self,sizeof(buf),2*(not empty),cast(pointer(buf),PVOID))
+        # Type must be token (2) not blank (0)
+        Structure.__init__(self,sizeof(buf),2,cast(pointer(buf),PVOID))
         
 class SecBufferDesc(ctypes.Structure):
     # SECBUFFER_VERSION=0, # of buffers, ptr to array (although an array of 1 might suffice)
@@ -145,7 +155,7 @@ class SecBufferDesc(ctypes.Structure):
         Structure.__init__(self,0,1,pointer(sb))
 
 class ctypes_sspi(w32sCA):
-    maxtoken = 1000000 # let's say.
+    maxtoken = 100000000 # let's say.
     def acquire(self,scheme):
         f = ctypes.windll.secur32.AcquireCredentialsHandleW
         f.argtypes = [c_wchar_p]*2 + [ULONG] + [c_void_p]*4 + [POINTER(SecHandle), POINTER(uLargeInt)]
@@ -174,7 +184,8 @@ class ctypes_sspi(w32sCA):
         
         print 'maxtoken',self.maxtoken
         
-        buf = ctypes.create_string_buffer(self.maxtoken)
+        buf = ctypes.create_string_buffer("hello",self.maxtoken)
+        print ctypes.sizeof(buf)
         sb = SecBuffer(buf)
         sbd = SecBufferDesc(sb)
         
@@ -193,14 +204,48 @@ class ctypes_sspi(w32sCA):
         
         print 'cred', pcred.contents.dwLower.contents.value, pcred.contents.dwUpper.contents.value
         
-        print         
+        print
+        print
+        print  ctypes.addressof(sbd.pBuffers[0])
+        print  ctypes.addressof(sbd.pBuffers[0])
+        print  ctypes.addressof(sbd.pBuffers[1])
+        print sbd.ulVersion
+        print sbd.cBuffers
+        print sbd.pBuffers[0].cbBuffer
+        print sbd.pBuffers[0].BufferType
+        print
+        for i in range(10):
+            print cast(sbd.pBuffers[0].pvBuffer,POINTER(ctypes.c_byte))[i]
+        print
+        print
+
+        psecbyfferdesc = pointer(sbd)     
+        time = uLargeInt()
+        print 'inittime', time.u.LowPart, time.u.HighPart, time.QuadPart
         
-        r = f(pcred,None,None,0,0,0,None,0,byref(newcontext),byref(sbd),byref(outputflags),None)
+        r = f(pcred,None,None,65564,0,0,None,0,byref(newcontext),psecbyfferdesc,byref(outputflags),byref(time))
         print 'init', r, hex(r)
+        print 'inittime', time.u.LowPart, time.u.HighPart, time.QuadPart        
         
         print 'cred', pcred.contents.dwLower.contents.value, pcred.contents.dwUpper.contents.value
         print 'newcontext', newcontext.dwLower.contents.value, newcontext.dwUpper.contents.value        
         
+
+        print
+        print  ctypes.addressof(sbd.pBuffers[0])
+        print  ctypes.addressof(sbd.pBuffers[0])
+        print  ctypes.addressof(sbd.pBuffers[1])
+        print sbd.ulVersion
+        print sbd.cBuffers
+        print sbd.pBuffers[0].cbBuffer
+        print sbd.pBuffers[0].BufferType
+        print
+        for i in range(10):
+            print cast(sbd.pBuffers[0].pvBuffer,POINTER(ctypes.c_byte))[i]
+        print
+        print
+
+      
         print "ok"
         
         return newcontext,r,sbd
