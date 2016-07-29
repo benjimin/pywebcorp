@@ -152,10 +152,13 @@ class ctypes_sspi(w32sCA):
         time = uLargeInt()
         
         print 'acqtime', time.u.LowPart, time.u.HighPart, time.QuadPart
-        print cred.dwLower.contents.value, cred.dwUpper.contents.value
+        print 'incred', cred.dwLower.contents.value, cred.dwUpper.contents.value
         r = f(None,u'NTLM',2,None,None,None,None,pcred,byref(time))
-        print 'acqtime', time.u.LowPart, time.u.HighPart,time.QuadPart
-        print cred.dwLower.contents.value, cred.dwUpper.contents.value
+        print 'return status',type(r),r,hex(r)
+        print 'acqtime', hex(time.u.LowPart), time.u.LowPart, hex(time.u.HighPart), time.u.HighPart, hex(time.QuadPart)
+        print 'outcred',cred.dwLower.contents.value, cred.dwUpper.contents.value
+        # Status = SEC_E_OK (zero)
+        # Time 0x7fffff36d5969fff probably = "Never expires" (e.g. max time converted to local timezone)
         
         return cred
         
@@ -186,6 +189,6 @@ print buf1.BufferType
 
 
 ClientAuth = w32sCA # testing! ********************************
-#ClientAuth = ctypes_sspi
+ClientAuth = ctypes_sspi
 
 if __name__ == '__main__': import demo
