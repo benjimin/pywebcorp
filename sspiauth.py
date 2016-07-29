@@ -150,14 +150,17 @@ class SecBuffer(Structure):
     def __init__(self, buf):
         self.Buffer = buf.raw
         Structure.__init__(self,sizeof(buf),2,cast(pointer(buf),PVOID))
+    # this object has a ptr and a size, just need to be able to generate a str..
         
 class SecBufferDesc(ctypes.Structure):
     # SECBUFFER_VERSION=0, # of buffers, ptr to array (although an array of 1 might suffice)
     _fields_ = [('ulVersion',ULONG),('cBuffers',ULONG),('pBuffers',POINTER(SecBuffer))]
     def __init__(self, sb):
+        self.sb = sb
         Structure.__init__(self,0,1,pointer(sb))
     def __getitem__(self, index):
-        return self.pBuffers[index]
+        #return self.pBuffers[index]
+        return self.sb
 
 class ctypes_sspi(w32sCA):
     maxtoken = 100000000 # let's say.
@@ -237,7 +240,7 @@ class ctypes_sspi(w32sCA):
       
         print "ok"
         
-        print sbd[0].Buffer        
+        print repr(sbd[0].Buffer)
         
         return newcontext,r,sbd
 
