@@ -148,19 +148,25 @@ class SecBuffer(Structure):
     # unless there is an available token- (not empty-) type buffer.
     _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',PVOID)]
     def __init__(self, buf):
-        self.Buffer = buf.raw
+        #self.Buffer = buf.raw
         Structure.__init__(self,sizeof(buf),2,cast(pointer(buf),PVOID))
+    def makebuffer():
+        # Here is the trick: get a char ptr, and use array indexing to
+        # extract the full length! ctypes will automatically produce a str!
+        pass
     # this object has a ptr and a size, just need to be able to generate a str..
+    # then use getattr/setattr to make it when asked for 
         
 class SecBufferDesc(ctypes.Structure):
     # SECBUFFER_VERSION=0, # of buffers, ptr to array (although an array of 1 might suffice)
     _fields_ = [('ulVersion',ULONG),('cBuffers',ULONG),('pBuffers',POINTER(SecBuffer))]
     def __init__(self, sb):
-        self.sb = sb
+        #self.sb = sb
         Structure.__init__(self,0,1,pointer(sb))
     def __getitem__(self, index):
-        #return self.pBuffers[index]
-        return self.sb
+        return self.pBuffers[index] # this probably generates a new instance undesirably
+                                    # actually, probably breaks everthing, because of __init__
+        #return self.sb
 
 class ctypes_sspi(w32sCA):
     maxtoken = 100000000 # let's say.
