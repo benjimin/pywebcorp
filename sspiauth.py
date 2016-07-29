@@ -9,6 +9,7 @@ import base64
 try:
     from sspi import ClientAuth
 except ImportError:
+    # from sspictypes import ClientAuth
     raise ImportError # TODO: ctypes! (nb. should do that in a try block too)
   
 def sspiauth(scheme='NTLM'):
@@ -19,6 +20,7 @@ def sspiauth(scheme='NTLM'):
             challenge = base64.b64decode(challenge[len(scheme):])
         status, token_buffer = handle.authorize(challenge)
         token = scheme + ' ' + base64.b64encode(token_buffer[0].Buffer)
+        print 'BUFFER', type(token_buffer[0].Buffer)
         return token
     return generate_answer
     
@@ -141,11 +143,12 @@ class SecHandle(Structure): # typedef for CredHandle/CtxtHandle
 
 class SecBuffer(Structure):
     # size (bytes) of buffer, type flags (empty=0,token=2), PVOID to buffer
+    # InitializeSecurityContext will fail 0x80090321 SEC_E_BUFFER_TOO_SMALL
+    # (which appears as a negative number using two's complement signed types)
+    # unless there is an available token- (not empty-) type buffer.
     _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',PVOID)]
     def __init__(self, buf):
-        # instead of cast, should try PVOID.from_buffer(buf)? wait, or not?
-        #Structure.__init__(self,sizeof(buf),2*(not empty),cast(pointer(buf),PVOID))
-        # Type must be token (2) not blank (0)
+        self.Buffer = buf.raw
         Structure.__init__(self,sizeof(buf),2,cast(pointer(buf),PVOID))
         
 class SecBufferDesc(ctypes.Structure):
@@ -153,6 +156,8 @@ class SecBufferDesc(ctypes.Structure):
     _fields_ = [('ulVersion',ULONG),('cBuffers',ULONG),('pBuffers',POINTER(SecBuffer))]
     def __init__(self, sb):
         Structure.__init__(self,0,1,pointer(sb))
+    def __getitem__(self, index):
+        return self.pBuffers[index]
 
 class ctypes_sspi(w32sCA):
     maxtoken = 100000000 # let's say.
@@ -188,6 +193,8 @@ class ctypes_sspi(w32sCA):
         print ctypes.sizeof(buf)
         sb = SecBuffer(buf)
         sbd = SecBufferDesc(sb)
+        #print '-'*10
+        #print sb.Buffer
         
         
         print 'oldcontext',context        
@@ -204,24 +211,15 @@ class ctypes_sspi(w32sCA):
         
         print 'cred', pcred.contents.dwLower.contents.value, pcred.contents.dwUpper.contents.value
         
-        print
-        print
-        print  ctypes.addressof(sbd.pBuffers[0])
-        print  ctypes.addressof(sbd.pBuffers[0])
-        print  ctypes.addressof(sbd.pBuffers[1])
-        print sbd.ulVersion
-        print sbd.cBuffers
-        print sbd.pBuffers[0].cbBuffer
-        print sbd.pBuffers[0].BufferType
+
         print
         for i in range(10):
             print cast(sbd.pBuffers[0].pvBuffer,POINTER(ctypes.c_byte))[i]
         print
-        print
 
         psecbyfferdesc = pointer(sbd)     
         time = uLargeInt()
-        print 'inittime', time.u.LowPart, time.u.HighPart, time.QuadPart
+        
         
         r = f(pcred,None,None,65564,0,0,None,0,byref(newcontext),psecbyfferdesc,byref(outputflags),byref(time))
         print 'init', r, hex(r)
@@ -232,21 +230,14 @@ class ctypes_sspi(w32sCA):
         
 
         print
-        print  ctypes.addressof(sbd.pBuffers[0])
-        print  ctypes.addressof(sbd.pBuffers[0])
-        print  ctypes.addressof(sbd.pBuffers[1])
-        print sbd.ulVersion
-        print sbd.cBuffers
-        print sbd.pBuffers[0].cbBuffer
-        print sbd.pBuffers[0].BufferType
-        print
         for i in range(10):
             print cast(sbd.pBuffers[0].pvBuffer,POINTER(ctypes.c_byte))[i]
-        print
         print
 
       
         print "ok"
+        
+        print sbd[0].Buffer        
         
         return newcontext,r,sbd
 
