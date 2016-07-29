@@ -37,6 +37,9 @@ class w32sCA():
         self.context = None
     def authorize(self,challenge=None):
         self.context, status, token_buffer = self.initialize(self.context, challenge)
+        print 'STATUS',status,hex(status)
+        # winerror.h : SEC_E_OK = 0 (unqualified success)
+        #              SEC_I_CONTINUE_NEEDED = 0x00090312 = 590610 (success but must call again)
         return status, token_buffer
     def acquire(self,scheme):
         credentials, expiry = win32security.AcquireCredentialsHandle(
@@ -113,8 +116,9 @@ from ctypes import POINTER, byref, pointer, Structure, sizeof, cast # convenienc
 from ctypes.wintypes import ULONG, LONG # int and long are both 32 for windows
 from ctypes import c_wchar_p, c_void_p, c_longlong, c_int32, c_uint32 # should use other types instead?
 
-SecStatus = LONG
+SecStatus = ULONG
 PVOID = c_void_p
+
 
 
 class SecInt(Structure):
@@ -131,17 +135,17 @@ class SecHandle(Structure): # typedef for CredHandle/CtxtHandle
 class SecBuffer(Structure):
     # size (bytes) of buffer, type flags (empty=0,token=2), PVOID to buffer
     _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',PVOID)]
-    def __init__(self, buf,notempty=False):
-        Structure.__init__(sizeof(buf),2*notempty,cast(pointer(buf),PVOID))
+    def __init__(self, buf,empty=True):
+        Structure.__init__(self,sizeof(buf),2*(not empty),cast(pointer(buf),PVOID))
         
 class SecBufferDesc(ctypes.Structure):
     # SECBUFFER_VERSION=0, # of buffers, ptr to array (although an array of 1 might suffice)
     _fields_ = [('ulVersion',ULONG),('cBuffers',ULONG),('pBuffers',POINTER(SecBuffer))]
     def __init__(self, sb):
-        Structure.__init__(0,1,pointer(sb))
+        Structure.__init__(self,0,1,pointer(sb))
 
 class ctypes_sspi(w32sCA):
-    maxtoken = 10000 # let's say.
+    maxtoken = 1000000 # let's say.
     def acquire(self,scheme):
         f = ctypes.windll.secur32.AcquireCredentialsHandleW
         f.argtypes = [c_wchar_p]*2 + [ULONG] + [c_void_p]*4 + [POINTER(SecHandle), POINTER(uLargeInt)]
@@ -159,11 +163,47 @@ class ctypes_sspi(w32sCA):
         print 'outcred',cred.dwLower.contents.value, cred.dwUpper.contents.value
         # Status = SEC_E_OK (zero)
         # Time 0x7fffff36d5969fff probably = "Never expires" (e.g. max time converted to local timezone)
+        # Specifically, is about 24hrs shy of the two's complement max signed value of 0x7fff...
         
         return cred
         
     def initialize(self,context,token):
         f = ctypes.windll.secur32.InitializeSecurityContextW
+        f.restype = SecStatus
+        f.argtypes = [c_void_p]*2 + [c_wchar_p] + [ULONG]*3 + [c_void_p,ULONG] + [c_void_p]*4
+        
+        print 'maxtoken',self.maxtoken
+        
+        buf = ctypes.create_string_buffer(self.maxtoken)
+        sb = SecBuffer(buf)
+        sbd = SecBufferDesc(sb)
+        
+        
+        print 'oldcontext',context        
+        newcontext = context if context is not None else SecHandle()
+        print 'newcontext', newcontext.dwLower.contents.value, newcontext.dwUpper.contents.value
+                        
+        outputflags = ULONG()
+        
+        # below here needs attention        
+        
+        print self.credential
+        
+        pcred = pointer(self.credential)
+        
+        print 'cred', pcred.contents.dwLower.contents.value, pcred.contents.dwUpper.contents.value
+        
+        print         
+        
+        r = f(pcred,None,None,0,0,0,None,0,byref(newcontext),byref(sbd),byref(outputflags),None)
+        print 'init', r, hex(r)
+        
+        print 'cred', pcred.contents.dwLower.contents.value, pcred.contents.dwUpper.contents.value
+        print 'newcontext', newcontext.dwLower.contents.value, newcontext.dwUpper.contents.value        
+        
+        print "ok"
+        
+        return newcontext,r,sbd
 
 """
 init.argtypes = [c_void_p]*2 + [c_wchar_p] + [c_ulong]*3 + [c_void_p,c_ulong] + [c_void_p]*4
