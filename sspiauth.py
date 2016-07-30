@@ -148,28 +148,36 @@ class SecBuffer(Structure):
     # unless there is an available token- (not empty-) type buffer.
     _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',PVOID)]
     def __init__(self, buf):
-        #self.Buffer = buf.raw
+        #self._buf = buf
         Structure.__init__(self,sizeof(buf),2,cast(pointer(buf),PVOID))
-    def makebuffer():
-        # Here is the trick: get a char ptr, and use array indexing to
-        # extract the full length! ctypes will automatically produce a str!
-        pass
-    # this object has a ptr and a size, just need to be able to generate a str..
-    # then use getattr/setattr to make it when asked for 
-        
+        # instead of cast, why not ctypes.from_address(buf)
+    @property
+    def Buffer(self):
+        return ctypes.string_at(self.pvBuffer, size=self.cbBuffer)
+        # may also need settr?
+
+# options for reading buffer into string:
+# - use constructor to cache original buffer object somewhere, call buf.raw (or buf.value to zero-terminate)
+# - cast(desc.pBuffers[0].pvBuffer,POINTER(ctypes.c_char))[:cbBuffer]
+# - ctypes.string_at(desc.pBuffers[0].pvBuffer, size=cbBuffer)
+# - (ctypes.c_char * pBuffers[0].cbBuffer).from_address(pBuffers[0].pvBuffer).raw (or .value)
+# Note .contents can replace [0]
+# 
+
 class SecBufferDesc(ctypes.Structure):
     # SECBUFFER_VERSION=0, # of buffers, ptr to array (although an array of 1 might suffice)
     _fields_ = [('ulVersion',ULONG),('cBuffers',ULONG),('pBuffers',POINTER(SecBuffer))]
     def __init__(self, sb):
-        #self.sb = sb
+#        self.sb = sb
         Structure.__init__(self,0,1,pointer(sb))
-    def __getitem__(self, index):
-        return self.pBuffers[index] # this probably generates a new instance undesirably
+#    def __getitem__(self, index):
+        #return self.pBuffers[index] # this probably generates a new instance undesirably
                                     # actually, probably breaks everthing, because of __init__
-        #return self.sb
+#        print "here's an item"
+#        return self.sb
 
 class ctypes_sspi(w32sCA):
-    maxtoken = 100000000 # let's say.
+    maxtoken = 2880 # let's say.
     def acquire(self,scheme):
         f = ctypes.windll.secur32.AcquireCredentialsHandleW
         f.argtypes = [c_wchar_p]*2 + [ULONG] + [c_void_p]*4 + [POINTER(SecHandle), POINTER(uLargeInt)]
@@ -204,7 +212,9 @@ class ctypes_sspi(w32sCA):
         sbd = SecBufferDesc(sb)
         #print '-'*10
         #print sb.Buffer
+        print sb.Buffer
         
+        raise SystemExit
         
         print 'oldcontext',context        
         newcontext = context if context is not None else SecHandle()
