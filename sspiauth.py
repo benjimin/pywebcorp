@@ -146,15 +146,18 @@ class SecBuffer(Structure):
     # InitializeSecurityContext will fail 0x80090321 SEC_E_BUFFER_TOO_SMALL
     # (which appears as a negative number using two's complement signed types)
     # unless there is an available token- (not empty-) type buffer.
+    # Otherwise, it will modify the buffer and update (downward) the size.
     _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',PVOID)]
     def __init__(self, buf):
         #self._buf = buf
+        print "initialising secbuffer"
         Structure.__init__(self,sizeof(buf),2,cast(pointer(buf),PVOID))
         # instead of cast, why not ctypes.from_address(buf)
     @property
     def Buffer(self):
         return ctypes.string_at(self.pvBuffer, size=self.cbBuffer)
         # may also need settr?
+        
 
 # options for reading buffer into string:
 # - use constructor to cache original buffer object somewhere, call buf.raw (or buf.value to zero-terminate)
@@ -170,8 +173,9 @@ class SecBufferDesc(ctypes.Structure):
     def __init__(self, sb):
 #        self.sb = sb
         Structure.__init__(self,0,1,pointer(sb))
-#    def __getitem__(self, index):
-        #return self.pBuffers[index] # this probably generates a new instance undesirably
+        
+    def __getitem__(self, index):
+        return self.pBuffers[index] # this probably generates a new instance undesirably
                                     # actually, probably breaks everthing, because of __init__
 #        print "here's an item"
 #        return self.sb
@@ -210,11 +214,10 @@ class ctypes_sspi(w32sCA):
         print ctypes.sizeof(buf)
         sb = SecBuffer(buf)
         sbd = SecBufferDesc(sb)
-        #print '-'*10
-        #print sb.Buffer
-        print sb.Buffer
         
-        raise SystemExit
+        #print sbd[0].Buffer # works.. assuming printable
+        
+        
         
         print 'oldcontext',context        
         newcontext = context if context is not None else SecHandle()
@@ -230,16 +233,12 @@ class ctypes_sspi(w32sCA):
         
         print 'cred', pcred.contents.dwLower.contents.value, pcred.contents.dwUpper.contents.value
         
-
-        print
-        for i in range(10):
-            print cast(sbd.pBuffers[0].pvBuffer,POINTER(ctypes.c_byte))[i]
-        print
+        print 'insize',sbd[0].cbBuffer
 
         psecbyfferdesc = pointer(sbd)     
         time = uLargeInt()
         
-        
+        print "----call---"
         r = f(pcred,None,None,65564,0,0,None,0,byref(newcontext),psecbyfferdesc,byref(outputflags),byref(time))
         print 'init', r, hex(r)
         print 'inittime', time.u.LowPart, time.u.HighPart, time.QuadPart        
@@ -247,16 +246,13 @@ class ctypes_sspi(w32sCA):
         print 'cred', pcred.contents.dwLower.contents.value, pcred.contents.dwUpper.contents.value
         print 'newcontext', newcontext.dwLower.contents.value, newcontext.dwUpper.contents.value        
         
-
-        print
-        for i in range(10):
-            print cast(sbd.pBuffers[0].pvBuffer,POINTER(ctypes.c_byte))[i]
-        print
+        print 'outsize',sbd[0].cbBuffer
 
       
         print "ok"
+        raise SystemExit
         
-        print repr(sbd[0].Buffer)
+        
         
         return newcontext,r,sbd
 
