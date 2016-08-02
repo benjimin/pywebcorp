@@ -2,7 +2,7 @@
 This is the logic for NTLM HTTP connections.
 """
 
-from sspiauth import sspiauth
+from sspiauth import sspi_ntlm_auth
 import httplib
 
 class ntlm_http:
@@ -11,7 +11,8 @@ class ntlm_http:
         self.toserver = 'Proxy-'*isproxy + 'Authorization'
         self.fromserv = ('Proxy-' if isproxy else 'WWW-') + 'Authenticate'
         
-        self.credentials = sspiauth() if credentials is None else credentials
+        self.credentials = \
+                    sspi_ntlm_auth() if credentials is None else credentials
 
         self.destination = host, port        
         self.conn = httplib.HTTPConnection(*self.destination)     

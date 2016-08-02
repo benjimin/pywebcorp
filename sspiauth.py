@@ -9,10 +9,10 @@ import base64
 try:
     from sspi import ClientAuth
 except ImportError:
-    # from sspictypes import ClientAuth
-    raise ImportError # TODO: ctypes! (nb. should do that in a try block too)
+    from ctypes_sspi import ClientAuth
+#from ctypes_sspi import ClientAuth
   
-def sspiauth(scheme='NTLM'):
+def sspi_ntlm_auth(scheme='NTLM'):
     handle = ClientAuth(scheme)
     def generate_answer(challenge=None):
         if challenge is not None:
@@ -146,7 +146,7 @@ class SecBuffer(Structure):
     # InitializeSecurityContext will fail 0x80090321 SEC_E_BUFFER_TOO_SMALL
     # (which appears as a negative number using two's complement signed types)
     # unless there is an available token- (not empty-) type buffer.
-    # Otherwise, it will modify the buffer and update (downward) the size.
+    # Otherwise, it will modify the buffer and update (only downward) the size.
     _fields_ = [('cbBuffer',ULONG),('BufferType',ULONG),('pvBuffer',PVOID)]
     def __init__(self, buf):
         #self._buf = buf
@@ -157,6 +157,10 @@ class SecBuffer(Structure):
     def Buffer(self):
         return ctypes.string_at(self.pvBuffer, size=self.cbBuffer)
         # may also need settr?
+    
+    #@Buffer.setter
+    #def Buffer(self, value):
+    #    assert len(bytestring) <= self.maxsize
         
 
 # options for reading buffer into string:
@@ -279,7 +283,7 @@ print buf1.BufferType
 
 
 
-ClientAuth = w32sCA # testing! ********************************
-ClientAuth = ctypes_sspi
+#ClientAuth = w32sCA # testing! ********************************
+#ClientAuth = ctypes_sspi
 
 if __name__ == '__main__': import demo
