@@ -28,8 +28,8 @@ Next, needs adapting to the interface of an existing connection/request library.
 Background
 ----------
 
-There appears to be no previous implementation of NTLM web proxy authentication 
-with SSPI credentials. 
+There appears to be no previous python implementation of NTLM web proxy 
+authentication with SSPI credentials. 
 
 What currently (i.e. previously) exists:
 
