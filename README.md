@@ -69,4 +69,5 @@ What currently (i.e. previously) exists:
 The recommended approach for python web access (and used by pip and conda) is
 the requests library. This incorporates the urllib3 library, which 
 differentiates from previous urllibs in support for connection reuse (which is
-particularly appropriate to NTLM). All urllibs utilise httplib.
+particularly appropriate to NTLM because the handshake is once per connection).
+All urllibs use httplib.
