@@ -12,8 +12,7 @@ This is not a policy issue; the obstacle is that the necessary protocols are
 not fully supported by the usual python web access libraries (e.g. requests
 and urllib2).
 
-Goal
-----
+### Goal
 
 The aim is to resolve this in httplib, urllib/urllib2, urllib3, or requests
 (or respective python 3 equivalents), so that downstream software just works
@@ -22,37 +21,45 @@ The aim is to resolve this in httplib, urllib/urllib2, urllib3, or requests
 Background
 ----------
 
+There appears to be no previous implementation of NTLM web proxy authentication 
+with SSPI credentials. 
+
 What currently (i.e. previously) exists:
+
+### Projects or code
 -   In pywin32 (popular library) there is sspi module accompanied by a demo
     for http download using NTLM/SSPI with no proxy (and other code relevent
     for testing SSPI). The win32security module also wraps SSPI API.
--   Detailed NTLM (including proxies and SSPI API) documentation at 
-    http://davenport.sourceforge.net/ntlm.html
--   The SSPI API is also accessible using ctypes.windll (from the standard 
-    library, potentially mitagating pywin32 vendoring in installers, which
-    is a concern expressed e.g. by pip developers).
--   HTTP overview at https://www.jmarshall.com/easy/http/ 
--   There is an open source re-implementation of the win32 API, which includes
-    the relevant header file.
-    https://github.com/FreeRDP/FreeRDP/blob/master/winpr/include/winpr/sspi.h
--   SSPI API documentation (old) also describes NTLM authentication
-    https://msdn.microsoft.com/en-us/library/bb742535.aspx
-    https://msdn.microsoft.com/en-us/library/windows/desktop/aa374712(v=vs.85).aspx
-    https://msdn.microsoft.com/en-us/library/windows/desktop/aa375512(v=vs.85).aspx
 -   Ntlmaps (a python equivalent of CNTLM) is a local proxy for forwarding 
     connections through an NTLM authenticated proxy without SSPI.
--   An example of python instead using native windows HTTP API to automagically
-    support any necessary protocols http://serverfault.com/a/755936
 -   Other attempts at supporting NTLM (without SSPI and generally excluding
     proxies) include ntlmpool (in urllib3.contrib), python-ntlm (for urllib2)
     and requests-ntlm (which does not currently seek integration).
--   Python web access libraries already support proxy autodetection, which
-    on Windows gets "Internet Options" from registry (i.e. as set by 
-    OS in control panel and iexplorer) or is overridden by env vars.
--   There exists an attempt at reimplementing pywin32 using ctypes. 
+-   An example of python instead using native windows HTTP API to automagically
+    support any necessary protocols http://serverfault.com/a/755936
+-   The SSPI API is also accessible using ctypes.windll (from the standard 
+    library, potentially mitagating pywin32 vendoring in installers, which
+    is a concern expressed e.g. by
+    [pip developers](https://github.com/pypa/pip/pull/3419)).
+    There already exists an attempt at reimplementing pywin32 using ctypes 
+    but it does not yet include SSPI. 
     https://github.com/enthought/pywin32-ctypes
+-   Python web access libraries (e.g. urllib2) already support proxy 
+    autodetection, which on Windows gets "Internet Options" from registry (i.e.
+    as set by OS in control panel and iexplorer) or is overridden by env vars.
+
+### Resources
+-   Detailed NTLM (including proxies and SSPI API) documentation at 
+    http://davenport.sourceforge.net/ntlm.html
+-   MSDN SSPI documentation (old) describes 
+    [NTLM authentication](https://msdn.microsoft.com/en-us/library/bb742535.aspx)
+    and the [API](https://msdn.microsoft.com/en-us/library/windows/desktop/aa375512(v=vs.85).aspx).
+-   HTTP overview at https://www.jmarshall.com/easy/http/ 
+-   There is an open source re-implementation of the win32 API, which includes
+    a permissively-licensed version of the API header file.
+    https://github.com/FreeRDP/FreeRDP/blob/master/winpr/include/winpr/sspi.h
 
 The recommended approach for python web access (and used by pip and conda) is
 the requests library. This incorporates the urllib3 library, which 
 differentiates from previous urllibs in support for connection reuse (which is
-appropriate to NTLM). All urllibs utilise httplib.
+particularly appropriate to NTLM). All urllibs utilise httplib.
