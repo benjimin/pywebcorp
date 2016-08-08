@@ -20,10 +20,10 @@ The aim is to resolve this in httplib, urllib/urllib2, urllib3, or requests
 
 ### Status
 
-This pure python code successfully demonstrates HTTP download through a proxy 
-using NTLM authentication and SSPI credentials. It is not dependent on pywin32
-as it includes a ctypes alternative. Currently it has only a dummy interface;
-the next step would be to adapt to an existing web connection/request library.
+Successfully demonstrating download from the web through an authenticated proxy,
+without needing to prompt for credentials. It is not dependent on pywin32
+because it contains an alternative implementation of SSPI using ctypes.
+Next, needs adapting to the interface of an existing connection/request library.
 
 Background
 ----------
