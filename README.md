@@ -18,6 +18,13 @@ The aim is to resolve this in httplib, urllib/urllib2, urllib3, or requests
 (or respective python 3 equivalents), so that downstream software just works
 (or can be made to work with minimal modification).
 
+### Status
+
+This pure python code successfully demonstrates HTTP download through a proxy 
+using NTLM authentication and SSPI credentials. It is not dependent on pywin32
+as it includes a ctypes alternative. Currently it has only a dummy interface;
+the next step would be to adapt to an existing web connection/request library.
+
 Background
 ----------
 
@@ -26,7 +33,7 @@ with SSPI credentials.
 
 What currently (i.e. previously) exists:
 
-### Projects or code
+### Relevant projects or code
 -   In pywin32 (popular library) there is sspi module accompanied by a demo
     for http download using NTLM/SSPI with no proxy (and other code relevent
     for testing SSPI). The win32security module also wraps SSPI API.
@@ -44,7 +51,7 @@ What currently (i.e. previously) exists:
     There already exists an attempt at reimplementing pywin32 using ctypes 
     but it does not yet include SSPI. 
     https://github.com/enthought/pywin32-ctypes
--   Python web access libraries (e.g. urllib2) already support proxy 
+-   Python web access libraries (e.g. urllib) already support proxy host/port
     autodetection, which on Windows gets "Internet Options" from registry (i.e.
     as set by OS in control panel and iexplorer) or is overridden by env vars.
 
