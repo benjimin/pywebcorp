@@ -17,4 +17,4 @@ connection_via_proxy = ntlm_http(proxyhost,proxyport,isproxy=True)
 for url in ["http://www.google.com.au","http://www.bbc.com/news"]:
     r = connection_via_proxy.do_request_and_get_response('GET',url)
     assert r.status == 200 # OK
-    print r.read().lower().split('title')[1]
+    print r.read().lower().split('title')[1] # parse webpage content

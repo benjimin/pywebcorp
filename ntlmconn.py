@@ -6,7 +6,7 @@ from sspiauth import sspi_ntlm_auth
 import httplib
 
 class ntlm_http:
-    def __init__(self, host, port, credentials=None, isproxy=False):
+    def __init__(self, host, port=80, credentials=None, isproxy=False):
         self.unauth = 407 if isproxy else 401
         self.toserver = 'Proxy-'*isproxy + 'Authorization'
         self.fromserv = ('Proxy-' if isproxy else 'WWW-') + 'Authenticate'
