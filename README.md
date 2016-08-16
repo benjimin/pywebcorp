@@ -18,6 +18,9 @@ The aim is to resolve this in httplib, urllib/urllib2, urllib3, or requests
 (or respective python 3 equivalents), so that downstream software just works
 (or can be made to work with minimal modification).
 
+Failing that, the goal is to produce an easily-distributable patch for conda,
+to enable installing python behind a corporate firewall.
+
 ### Status
 
 Successfully demonstrating download from the web through an authenticated proxy,
@@ -71,3 +74,7 @@ the requests library. This incorporates the urllib3 library, which
 differentiates from previous urllibs in support for connection reuse (which is
 particularly appropriate to NTLM because the handshake is once per usable
 connection). All urllibs employ httplib.
+
+The relevent existing libraries (requests-ntlm, ntlmpool, ..) all rely on
+python-ntlm (or a fork thereof). Note that python-ntlm is LGPL, and appears
+to include a python reimplementation of cryptography algorithms. 
