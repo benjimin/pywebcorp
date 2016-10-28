@@ -28,6 +28,13 @@ without needing to prompt for credentials. It is not dependent on pywin32
 because it contains an alternative implementation of SSPI using ctypes.
 Next, needs adapting to the interface of an existing connection/request library.
 
+Testing
+-------
+
+If you would like to begin helping with this effort, simply download this 
+repository, run "python demo.py", and report back whether it is able to access 
+the internet from your network.
+
 Background
 ----------
 
@@ -68,6 +75,8 @@ What currently (i.e. previously) exists:
 -   There is an open source re-implementation of the win32 API, which includes
     a permissively-licensed version of the API header file.
     https://github.com/FreeRDP/FreeRDP/blob/master/winpr/include/winpr/sspi.h
+
+### Python ecosystem
 
 The recommended approach for python web access (and used by pip and conda) is
 the requests library. This incorporates the urllib3 library, which 

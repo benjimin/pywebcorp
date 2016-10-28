@@ -1,15 +1,18 @@
 """
 For test purposes: a demo of downloading webpages through the proxy.
+
+Expected output should resemble:
+    >google</
+    >home - bbc news</
+
 """
 
 import urlparse
 import urllib
 
-
-#proxyhost,proxyport = "proxy.mydomain.org",8080
 autodetect = urlparse.urlparse(urllib.getproxies()['http'])
-proxyhost = autodetect.hostname
-proxyport = autodetect.port       
+proxyhost = autodetect.hostname # e.g. "proxy.mydomain.org"
+proxyport = autodetect.port     # e.g. 8080
 
 from ntlmconn import ntlm_http
 connection_via_proxy = ntlm_http(proxyhost,proxyport,isproxy=True)
