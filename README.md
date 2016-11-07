@@ -23,10 +23,17 @@ to enable installing python behind a corporate firewall.
 
 ### Status
 
-Successfully demonstrating download from the web through an authenticated proxy,
-without needing to prompt for credentials. It is not dependent on pywin32
-because it contains an alternative implementation of SSPI using ctypes.
-Next, needs adapting to the interface of an existing connection/request library.
+Successfully demonstrating (demo.py) download from the web through an 
+authenticated proxy, without needing to prompt for credentials. 
+It is not dependent on pywin32 because it contains an alternative 
+implementation of SSPI using ctypes.
+
+Next steps:
+-   Create detailed test script to analyse and report how a network is behaving
+-   Support HTTPS
+-   Adapt to the interface of urllib3
+-   Create patch for conda
+-   Try to replace python-ntlm using standard crypto libraries
 
 Testing
 -------
@@ -44,9 +51,9 @@ authentication with SSPI credentials.
 What currently (i.e. previously) exists:
 
 ### Relevant projects or code
--   In pywin32 (popular library) there is sspi module accompanied by a demo
+-   In pywin32 (popular library) there is an sspi module, accompanied by a demo
     for http download using NTLM/SSPI with no proxy (and other code relevent
-    for testing SSPI). The win32security module also wraps SSPI API.
+    for testing SSPI). Its win32security module also wraps SSPI API.
 -   Ntlmaps (a python equivalent of CNTLM) is a local proxy for forwarding 
     connections through an NTLM authenticated proxy without SSPI.
 -   Other attempts at supporting NTLM (without SSPI and generally excluding

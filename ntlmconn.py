@@ -4,6 +4,7 @@ This is the logic for NTLM HTTP connections.
 
 from sspiauth import sspi_ntlm_auth
 import httplib
+import logging
 
 class ntlm_http:
     def __init__(self, host, port=80, credentials=None, isproxy=False):
@@ -38,6 +39,7 @@ class ntlm_http:
         r = self._http(kind,url) # knock first
         
         if r.status == self.unauth: # perform NTLM handshake if necessary            
+            logging.info("Attempting NTLM handshake for "+url)
             r.read()
             assert r.isclosed()            
             self.conn = httplib.HTTPConnection(*self.destination)   # reconnect
@@ -47,6 +49,9 @@ class ntlm_http:
             challenge = r.getheader(self.fromserv)
             r = self._http(kind,url,
                            headers={self.toserver:self.credentials(challenge)}) # authenticate
+        else:
+            logging.info("Skipping NTLM handshake for "+url)
+        
         # handshake either completed or was never necessary so now fall
         # back to standard implementation until connection closed
         self.do_request_and_get_response = self._http
