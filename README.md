@@ -39,8 +39,8 @@ Testing
 -------
 
 If you would like to begin helping with this effort, simply download this 
-repository, run "python demo.py", and report back whether it is able to access 
-the internet from your network.
+repository, run "python demo.py" (and similarly for test.py), and report back 
+whether it is able to access the internet from your network.
 
 Background
 ----------
@@ -94,3 +94,35 @@ connection). All urllibs employ httplib.
 The relevent existing libraries (requests-ntlm, ntlmpool, ..) all rely on
 python-ntlm (or a fork thereof). Note that python-ntlm is LGPL, and appears
 to include a python reimplementation of cryptography algorithms. 
+
+### HTTPS and CONNECT
+
+The http protocol consists of opening a socket (with or without secure
+wrapping) and sending, then receiving, dispatches (client requests and server 
+responses) which consist of:
+- Preface line.
+- Headers.
+- Blank separator.
+- Optional message body.
+The preface line in a request always features one of 
+the *verbs* from a set which includes GET, POST and CONNECT.
+The preface line in a response always features some kind of *status* 
+which acknowledges (and relates to) the preceding request.
+Aside from the preface line, each dispatch follows the pattern of an 
+internet message standard (which also applies to email protocols).
+
+Frequently, either party closes the connection after sending a dispatch.
+The CONNECT verb is exceptional only in that, after the response is
+dispatched, the underlying socket is potentially turned over for a different use
+(i.e. the server makes it a tunnel to another host, and the client typically
+applies a wrapper layer and uses it as the socket for a HTTPS connection to
+the other host).
+
+The NTLM proxy handshake protocol still depends on the content of the
+CONNECT response headers (not just the status). Unfortunately, a current 
+[bug](https://bugs.python.org/issue24964) in the python standard library
+makes this unavailable in httplib. Part of the problem is that the API treats
+CONNECT entirely differently from other request verbs. 
+(It would seem more natural if it were just a normal verb, and if responses
+included socket handles that could also be passed to http connection 
+constructors. This ought also keep the https connection subclass simple.)

@@ -16,7 +16,7 @@ except ImportError:
 def sspi_ntlm_auth(scheme='NTLM'):
     handle = ClientAuth(scheme)
     def generate_answer(challenge=None):
-        logging.debug("challenge: "+challenge)
+        logging.debug("challenge: "+str(challenge))
         if challenge is not None:
             assert challenge.startswith(scheme) # or, could be a series of challenge options?
             challenge = base64.b64decode(challenge[len(scheme):])

@@ -1,6 +1,7 @@
 """  
 Question: does my proxy use NTLM? (For HTTP/S?)
 
+
 """
 
 
@@ -14,13 +15,13 @@ def req(url):
         return "Proxy error"
 
 
+examples = {'http': "http://stackoverflow.com",
+            'https': "https://repo.continuum.io/"}
 def do_test(f):
-    examples = {'http': "http://stackoverflow.com",
-                'https': "https://repo.continuum.io/"}
-    print
     print f.__doc__
     for key,url in examples.items():
         print key+'\t', f(url)
+    print
 
 import httplib
 cls = {'http':httplib.HTTPConnection,'https':httplib.HTTPSConnection}
@@ -38,7 +39,6 @@ def direct(url):
         return conn.getresponse().status
         
 
-
 def viaproxy(url, host, port, scheme):
     """
     
@@ -50,14 +50,33 @@ def viaproxy(url, host, port, scheme):
     Does not depend on which scheme used to access the proxy.
     
     """
-    conn = cls[scheme](host, port)
+    #assert scheme == 'http'
     if 'http:' in url:
         # HTTPGET style proxying
-        conn.request('GET',url)
+        conn = cls[scheme](host, port)
+        try:
+            conn.request('GET',url)
+        except httplib.ssl.SSLError:
+            return "SSL error"
         return conn.getresponse().status
     elif 'https' in url:
-        # CONNECT tunnel
-        return "CONNECT not implemented yet"
+        import urlparse
+        u = urlparse.urlparse(url)
+        conn = cls[scheme](host, port, timeout=2)
+        conn.set_tunnel(u.hostname)
+        try:
+            conn.request('GET', u.path)
+        except httplib.socket.timeout:
+            return "Timeout"
+        except httplib.socket.error as err:
+            if err.errno == httplib.socket.errno.ETIMEDOUT:
+                return "Time-out"
+            if '407' in err.message:
+                return "Proxy auth error"
+            if '502' in err.message:
+                return "Bad gateway " + ("(SSL port blocked)" if "SSL) port is not allowed" in err.message else '')
+            raise err
+        return conn.getresponse().status # currently timing out...
     else:
         raise NotImplementedError
 
@@ -67,12 +86,11 @@ def proxyfactory(proxyscheme):
     proxy = urlparse.urlparse(urllib.getproxies()[proxyscheme])
     def wrapper(url):
         return viaproxy(url, proxy.hostname, proxy.port, proxyscheme)
-    wrapper.__doc__ = "via " + proxyscheme + '://' \
-                      + proxy.hostname + ':' + str(proxy.port)
+    wrapper.__doc__ = "via " + proxyscheme + '  ' + proxy.hostname + ':' + str(proxy.port)
     return wrapper
 
 if  __name__ == '__main__':
-    #do_test(req)
-    #do_test(direct)
-    do_test(proxyfactory('http'))
-    #do_test(proxyfactory('https'))
+    do_test(req)
+    do_test(direct)
+    do_test(proxyfactory('http'))  
+    do_test(proxyfactory('https'))
