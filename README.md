@@ -104,6 +104,7 @@ responses) which consist of:
 - Headers.
 - Blank separator.
 - Optional message body.
+
 The preface line in a request always features one of 
 the *verbs* from a set which includes GET, POST and CONNECT.
 The preface line in a response always features some kind of *status* 
