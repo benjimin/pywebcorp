@@ -1,6 +1,6 @@
 
-HTTP web access via NTLM-authenticated proxy using SSPI for "single sign-on"
-============================================================================
+HTTP and HTTPS web access via NTLM-authenticated proxy using SSPI for "single sign-on"
+======================================================================================
 
 Motivation
 ----------
@@ -23,14 +23,12 @@ to enable installing python behind a corporate firewall.
 
 ### Status
 
-Successfully demonstrating (demo.py) download from the web through an 
-authenticated proxy, without needing to prompt for credentials. 
+Successfully demonstrating (demo.py and https.py) download from the web through an 
+authenticated (NTLM) proxy, without needing to prompt for credentials. 
 It is not dependent on pywin32 because it contains an alternative 
 implementation of SSPI using ctypes.
 
 Next steps:
--   Create detailed test script to analyse and report how a network is behaving
--   Support HTTPS
 -   Adapt to the interface of urllib3
 -   Create patch for conda
 -   Try to replace python-ntlm using standard crypto libraries
@@ -39,8 +37,8 @@ Testing
 -------
 
 If you would like to begin helping with this effort, simply download this 
-repository, run "python demo.py" (and similarly for test.py), and report back 
-whether it is able to access the internet from your network.
+repository, run "python demo.py" (and similarly for test.py and https.py), 
+and report back whether it is able to access the internet from your network.
 
 Background
 ----------
