@@ -1,28 +1,14 @@
 import urllib
-import urlparse
 import socket
 import contextlib
 
-import sspiauth
+from . import sspiauth
 
-#from unittest.mock import patch
-from mock import patch
+from unittest.mock import patch
+#from mock import patch
 
 import requests.packages.urllib3 as urllib3
 
-class DebugMixin(object):
-    pass
-#    def close(self):
-#        print "closing!!"
-#        return super(DebugMixin, self).close()
-#    def request(self, *args, **kwargs):
-#        print "requesting", args, kwargs
-#        return super(DebugMixin, self).request(*args, **kwargs)   
-#    def getresponse(self):
-#        r = super(DebugMixin, self).getresponse()
-#        print "responding...", r.status
-#        return r
-           
 class NTLMmixin(object):
     may_close = True
     def request(self, *args, **kwargs):
@@ -62,16 +48,20 @@ class NTLMmixin(object):
         if getattr(self, '_may_close', True):
             return super(NTLMmixin, self).close()
 
-    
 
-class NTLM_HTTP(NTLMmixin, DebugMixin, urllib3.connection.HTTPConnection):
+class NTLM_HTTP(NTLMmixin, urllib3.connection.HTTPConnection):
     def _tunnel(self):
         tunnel_resource = '%s:%i' % (self._tunnel_host, self._tunnel_port)
         self.request('CONNECT', tunnel_resource)
         r = self.getresponse()
         assert r.status == 200
         r.read(amt=0)
-class NTLM_HTTPS(NTLMmixin, DebugMixin, urllib3.connection.HTTPSConnection):
+
+
+# Use Verified connection base if supported:
+Parent = urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls
+
+class NTLM_HTTPS(NTLMmixin, Parent):
     def _tunnel(self):
         try:
             self.__class__ = NTLM_HTTP
@@ -97,9 +87,12 @@ class NTLM_HTTPS(NTLMmixin, DebugMixin, urllib3.connection.HTTPSConnection):
         return super(NTLM_HTTPS, self).request(method, u.url, *args, **kwargs)
 
 
+# apply patch to urllib3 package for remainder of this python session
+urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls = NTLM_HTTPS
+
+
 if __name__ == '__main__':
     example = "https://repo.continuum.io/"
     import requests
-    urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls = NTLM_HTTPS
     response = requests.get(example)
-    print response.text
+    print(response.text)
