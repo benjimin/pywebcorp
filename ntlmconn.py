@@ -18,7 +18,7 @@ class ntlm_http:
         self.destination = host, port        
         self.conn = httplib.HTTPConnection(*self.destination)     
 
-    def _http(self,kind,url,headers={}):
+    def _request(self,kind,url,headers={}):
         """ standard (non-NTLM) HTTP request and response """
         self.conn.request(kind,url,headers=headers)
         return self.conn.getresponse()
@@ -36,24 +36,25 @@ class ntlm_http:
             Server: deliver resource
             ...
         """        
-        r = self._http(kind,url) # knock first
+        r = self._request(kind,url) # knock first
         
         if r.status == self.unauth: # perform NTLM handshake if necessary            
             logging.info("Attempting NTLM handshake for "+url)
             r.read()
             assert r.isclosed()            
             self.conn = httplib.HTTPConnection(*self.destination)   # reconnect
-            r = self._http(kind,url,
+            r = self._request(kind,url,
                            headers={self.toserver:self.credentials()}) # negotiate
             r.read()
             challenge = r.getheader(self.fromserv)
-            r = self._http(kind,url,
+            r = self._request(kind,url,
                            headers={self.toserver:self.credentials(challenge)}) # authenticate
         else:
             logging.info("Skipping NTLM handshake for "+url)
         
         # handshake either completed or was never necessary so now fall
         # back to standard implementation until connection closed
-        self.do_request_and_get_response = self._http
+        self.do_request_and_get_response = self._request
         return r
+  
   

@@ -125,3 +125,38 @@ CONNECT entirely differently from other request verbs.
 (It would seem more natural if it were just a normal verb, and if responses
 included socket handles that could also be passed to http connection 
 constructors. This ought also keep the https connection subclass simple.)
+
+### Conda example
+
+Conda accesses the web via a requests Session subclass with HTTPAdapter 
+mounted (for http/s, plus alternate adapters e.g. for file paths). Session
+objects have methods corresponding to request verbs. The adapter is 
+to "send" a request object into a response object.
+
+Urllib3 uses pool managers (with request methods to return responses) 
+which spool out connection pools (for each destination) that in turn manage 
+connection objects (httplib connection subclasses, which also improve
+support for security certificates). Individual requests are forwarded through 
+these management layers; the calling application is not passed a connection
+handle. 
+
+Conda and requests automatically support non-authenticated proxies. When a 
+requests session performs a request, it merges settings from the environment
+(invoking urllib.getproxies). This passes a list of proxies to the HTTPAdapter,
+which uses urllib3.proxy_from_url to instantiate an appropriate pool manager
+from which to draw the connection. The proxy support in urllib3 is presented 
+through a pool manager subclass. This proxy manager applies the logic of 
+sharing a single connection pool for all HTTP (GET proxying), and another for 
+each HTTPS destination (CONNECT proxying). It also passes proxy arguments
+to the connection pool (which establishes tunnels, modifies headers, etc).
+
+NTLM is authentication at the connection (rather than request) level. Seamless
+support requires intercepting the user's intended request at a level where
+the response headers are exposed and the connection can be remade.
+
+To work, the ConnectionPool or Connection object needs to understand the NTLM 
+handshake (and either be passed knowledge, or deduce from the knock rejection 
+header, whether the host is being asked to proxy). The connection tunnelling 
+should be re-implemented through CONNECT requests (which can utilise the 
+handshake logic in the same way as HTTP GET proxying and direct HTTP/S 
+requests).
