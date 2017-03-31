@@ -2,15 +2,19 @@ import urllib
 import socket
 import contextlib
 
-from . import sspiauth
+try:
+    from . import sspiauth
+except ValueError:
+    import sspiauth
 
-from unittest.mock import patch
-#from mock import patch
+try:
+    from unittest.mock import patch
+except ImportError:
+    from mock import patch
 
 import requests.packages.urllib3 as urllib3
 
 class NTLMmixin(object):
-    may_close = True
     def request(self, *args, **kwargs):
         """Cache first request"""
         if not hasattr(self, 'original_request'):
@@ -40,13 +44,10 @@ class NTLMmixin(object):
         self.request(*self.original_request, headers={'Proxy-Authorization':credentials(challenge)})
 
         try:
-            self._may_close = False
+            self.close = lambda : None
             return self.getresponse()
         finally:
-            self._may_close = True
-    def close(self):
-        if getattr(self, '_may_close', True):
-            return super(NTLMmixin, self).close()
+            del self.close # or, self.close = super(NTLMmixin, self).close
 
 
 class NTLM_HTTP(NTLMmixin, urllib3.connection.HTTPConnection):
