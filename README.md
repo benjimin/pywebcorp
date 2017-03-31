@@ -43,14 +43,14 @@ The main steps involved are:
  - ensure `pywebcorp.patch` gets imported before python software tries to
    access the web.
 
-### Instructions for conda
+### Installation for conda
 
 Conda is the recommended python package manager (e.g. it uses best-practice
 virtual environments for avoiding dependency conflicts). Install
 [miniconda](https://conda.io/miniconda.html) for single-user.
 
 Download the pywebcorp zip
-[archive](https://github.com/benjimin/pywebcorp/archive/demo.zip) from GitHub,
+[archive](https://github.com/benjimin/pywebcorp/archive/master.zip) from GitHub,
 and copy the pywebcorp sub-directory into your conda global site-packages
 (e.g.
 `C:\Users\YourName\AppData\Local\Continuum\Miniconda3\Lib\site-packages\pywebcorp`).
@@ -69,7 +69,7 @@ Finally, in a cmd.exe terminal,  `activate` the root conda environment, use
 the `conda create` and `conda install` commands to download libraries into a
 fresh python environment.
 
-### Instructions for pip
+### Installation for pip
 
 *Note: untested.*
 
@@ -146,71 +146,3 @@ connection). All urllibs employ httplib.
 The relevent existing libraries (requests-ntlm, ntlmpool, ..) all rely on
 python-ntlm (or a fork thereof). Note that python-ntlm is LGPL, and appears
 to include a python reimplementation of cryptography algorithms.
-
-### HTTPS and CONNECT
-
-The http protocol consists of opening a socket (with or without secure
-wrapping) and sending, then receiving, dispatches (client requests and server
-responses) which consist of:
-- Preface line.
-- Headers.
-- Blank separator.
-- Optional message body.
-
-The preface line in a request always features one of
-the *verbs* from a set which includes GET, POST and CONNECT.
-The preface line in a response always features some kind of *status*
-which acknowledges (and relates to) the preceding request.
-Aside from the preface line, each dispatch follows the pattern of an
-internet message standard (which also applies to email protocols).
-
-Frequently, either party closes the connection after sending a dispatch.
-The CONNECT verb is exceptional only in that, after the response is
-dispatched, the underlying socket is potentially turned over for a different use
-(i.e. the server makes it a tunnel to another host, and the client typically
-applies a wrapper layer and uses it as the socket for a HTTPS connection to
-the other host).
-
-The NTLM proxy handshake protocol still depends on the content of the
-CONNECT response headers (not just the status). Unfortunately, a current
-[bug](https://bugs.python.org/issue24964) in the python standard library
-makes this unavailable in httplib. Part of the problem is that the API treats
-CONNECT entirely differently from other request verbs.
-(It would seem more natural if it were just a normal verb, and if responses
-included socket handles that could also be passed to http connection
-constructors. This ought also keep the https connection subclass simple.)
-
-### Conda example
-
-Conda accesses the web via a requests Session subclass with HTTPAdapter
-mounted (for http/s, plus alternate adapters e.g. for file paths). Session
-objects have methods corresponding to request verbs. The adapter is
-to "send" a request object into a response object.
-
-Urllib3 uses pool managers (with request methods to return responses)
-which spool out connection pools (for each destination) that in turn manage
-connection objects (httplib connection subclasses, which also improve
-support for security certificates). Individual requests are forwarded through
-these management layers; the calling application is not passed a connection
-handle.
-
-Conda and requests automatically support non-authenticated proxies. When a
-requests session performs a request, it merges settings from the environment
-(invoking urllib.getproxies). This passes a list of proxies to the HTTPAdapter,
-which uses urllib3.proxy_from_url to instantiate an appropriate pool manager
-from which to draw the connection. The proxy support in urllib3 is presented
-through a pool manager subclass. This proxy manager applies the logic of
-sharing a single connection pool for all HTTP (GET proxying), and another for
-each HTTPS destination (CONNECT proxying). It also passes proxy arguments
-to the connection pool (which establishes tunnels, modifies headers, etc).
-
-NTLM is authentication at the connection (rather than request) level. Seamless
-support requires intercepting the user's intended request at a level where
-the response headers are exposed and the connection can be remade.
-
-To work, the ConnectionPool or Connection object needs to understand the NTLM
-handshake (and either be passed knowledge, or deduce from the knock rejection
-header, whether the host is being asked to proxy). The connection tunnelling
-should be re-implemented through CONNECT requests (which can utilise the
-handshake logic in the same way as HTTP GET proxying and direct HTTP/S
-requests).
