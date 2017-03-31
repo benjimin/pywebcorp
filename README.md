@@ -57,7 +57,7 @@ and copy the pywebcorp sub-directory into your conda global site-packages
 
 In Internet Explorer - Internet Options - Connections - LAN Settings - Proxy
 server: ensure "Use proxy" is checked and the address/port are correct. These
-settings will also be used by python.
+settings will also be inherited within python.
 
 Also in the conda global site-packages, locate the requests package and its
 initialisation module (e.g.
