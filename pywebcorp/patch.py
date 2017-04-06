@@ -1,6 +1,7 @@
 import urllib
 import socket
 import contextlib
+import threading
 
 try:
     from . import sspiauth
@@ -14,69 +15,86 @@ except ImportError:
 
 import requests.packages.urllib3 as urllib3
 
+
 class NTLMmixin(object):
-    def request(self, *args, **kwargs):
-        """Cache first request"""
-        if not hasattr(self, 'original_request'):
-            self.original_request = args
-        return super(NTLMmixin, self).request(*args, **kwargs)
+    def request(self, method, url, body=None, headers={}):
+        """Cache request"""
+        self._latest_request = method, url, body, headers
+        return super(NTLMmixin, self).request(method, url, body, headers)
     def getresponse(self):
+        # NTLM handshake does not occur for subsequent requests
         self.getresponse = super(NTLMmixin, self).getresponse
 
         # Response to knock
         r = self.getresponse()
+        if not r.status == 407: # bypass if NTLM not needed
+            return r
 
-        assert r.status == 407
+        def rerequest(headers):
+            """Repeat previous request with updated headers"""
+            self._latest_request[-1].update(headers)
+            return self.request(*self._latest_request)
+
+        # Reconnect and Negotiate
         self.sock = socket.create_connection((self.host, self.port), self.timeout, self.source_address)
-
         credentials = sspiauth.sspi_ntlm_auth()
+        rerequest(headers={'Proxy-Authorization':credentials()})
 
-        # Negotiate:
-        self.request(*self.original_request, headers={'Proxy-Authorization':credentials()})
+        # Obtain challenge from server
         r = self.getresponse()
-
         challenge = r.getheader('Proxy-Authenticate')
         r.read(amt=0) # change state (finish with this response to permit the next)
-
         assert challenge.startswith('NTLM ') # note, this assertion is excessively restrictive; ".contains" might be preferable
         assert r.getheader('Connection').lower() == 'Keep-Alive'.lower()
 
-        self.request(*self.original_request, headers={'Proxy-Authorization':credentials(challenge)})
-
+        # Answer challenge
+        rerequest(headers={'Proxy-Authorization':credentials(challenge)})
         try:
             self.close = lambda : None
             return self.getresponse()
         finally:
             del self.close # or, self.close = super(NTLMmixin, self).close
 
+HTTP = urllib3.connection.HTTPConnection
+HTTPS = urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls
+# Note, HTTPS may or may not be verified subclass.
 
-class NTLM_HTTP(NTLMmixin, urllib3.connection.HTTPConnection):
+class NTLM_HTTP(NTLMmixin, HTTP):
     def _tunnel(self):
+        """Treat tunnels like any other HTTP request"""
         tunnel_resource = '%s:%i' % (self._tunnel_host, self._tunnel_port)
         self.request('CONNECT', tunnel_resource)
         r = self.getresponse()
         assert r.status == 200
         r.read(amt=0)
 
+threadsafety = threading.Lock()
 
-# Use Verified connection base if supported:
-Parent = urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls
-
-class NTLM_HTTPS(NTLMmixin, Parent):
+class NTLM_HTTPS(NTLMmixin, HTTPS):
     def _tunnel(self):
+        """Negotiate tunnel before adding secure layer"""
         try:
-            self.__class__ = NTLM_HTTP
-            self._tunnel()
+            original, self.__class__ = self.__class__, NTLM_HTTP
+            return self._tunnel()
         finally:
-            self.__class__ = NTLM_HTTPS
+            self.__class__ = original
     def connect(self):
         """Ensure correct (not expired) socket receives secure wrapping"""
-        original = urllib3.connection.ssl_wrap_socket
-        def wrap_latest_socket(sock, *args, **kwargs):
-            return original(self.sock, *args, **kwargs)
-        with patch('requests.packages.urllib3.connection.ssl_wrap_socket',
-                   new=wrap_latest_socket):
-            return super(NTLM_HTTPS, self).connect()
+        # The base connection class assumed the socket does not change when
+        # tunnelling (between opening the socket-connection and applying
+        # secure wrapper), so may (during .connect() method) inadvertently
+        # apply wrapper to expired socket instead. Tricky patch since multiple
+        # HTTPS classes need fixing, socket not very amenable to adding
+        # attributes, and ssl wrapper is a global.
+        with threadsafety:
+            original = urllib3.connection.ssl_wrap_socket
+            def wrap_latest_socket(sock, *args, **kwargs): # discard old sock
+                return original(self.sock, *args, **kwargs)
+            try:
+                urllib3.connection.ssl_wrap_socket = wrap_latest_socket
+                return super(NTLM_HTTPS, self).connect()
+            finally:
+                urllib3.connection.ssl_wrap_socket = original
     def request(self, method, url, *args, **kwargs):
         """Ensure absolute URI (client must name host, not only path)"""
         # Required by HTTP1.1 when using proxies, and by later HTTP always.
@@ -90,6 +108,7 @@ class NTLM_HTTPS(NTLMmixin, Parent):
 
 # apply patch to urllib3 package for remainder of this python session
 urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls = NTLM_HTTPS
+urllib3.connectionpool.HTTPConnectionPool.ConnectionCls = NTLM_HTTP
 
 
 if __name__ == '__main__':

@@ -45,9 +45,10 @@ The main steps involved are:
 
 ### Installation for conda
 
-Conda is the recommended python package manager (e.g. it uses best-practice
-virtual environments for avoiding dependency conflicts). Install
-[miniconda](https://conda.io/miniconda.html) for single-user.
+Conda is the recommended "best-practice" python package manager (e.g. it
+manages dependencies including compiled libraries and the interpreter itself,
+and uses seperated virtual environments to manage dependency conflicts).
+Install [miniconda](https://conda.io/miniconda.html) for single-user.
 
 Download the pywebcorp zip
 [archive](https://github.com/benjimin/pywebcorp/archive/master.zip) from GitHub,
